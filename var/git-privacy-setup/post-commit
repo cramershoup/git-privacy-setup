@@ -1,0 +1,53 @@
+#!/bin/sh
+
+# Git hook `post-commit`
+# It runs just after Git finished a commit.
+# It prunes the time zone and time info from the commit data.
+# It also highlights the current commit's user profile.
+
+case "$(uname -s)" in
+    Linux*)     SYS=linux;;
+    Darwin*)    SYS=mac;;
+    CYGWIN*)    SYS=win;;
+    MINGW*)     SYS=win;;
+    *)          SYS=UNKNOWN
+esac
+
+function highlight()
+{
+    printf "\e[44m$@\e[0m\n"
+}
+
+function bold()
+{
+    printf "\e[1m$@\e[21m"
+}
+
+function format_date()
+{
+    ts="$1"
+    if [[ "${SYS}" == "mac" ]]; then
+        TZ=UTC date -j -f "%s" "${ts}" "+%Y-%m-%dT00:00:00 +0000"
+    else
+        TZ=UTC date -d "@${ts}" "+%Y-%m-%dT00:00:00 +0000"
+    fi
+}
+
+function git_get()
+{
+    git --no-pager log --format="$1" -1
+}
+
+if [ "${POST_COMMIT}" != "true" ]; then
+    export POST_COMMIT=true
+    highlight "Pruning time zone and time info..."
+    author_ts=$(git_get %at)
+    committer_ts=$(git_get %ct)
+    export GIT_AUTHOR_DATE=$(format_date "${author_ts}")
+    export GIT_COMMITTER_DATE=$(format_date "${committer_ts}")
+    cmd=( git --no-pager commit --amend --no-edit --date="${GIT_AUTHOR_DATE}" )
+    if [ $(git_get %G\?) != "N" ]; then cmd+=( -S ); fi
+    "${cmd[@]}" > /dev/null
+    highlight "Committed as $(bold "${GIT_AUTHOR_NAME} <${GIT_AUTHOR_EMAIL}>")"
+    git --no-pager log --color --format=fuller --show-signature -1
+fi

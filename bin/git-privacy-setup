@@ -1,0 +1,295 @@
+#!/usr/bin/env bash
+
+VAR_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../var" >/dev/null && pwd )"
+INSTALL_DIR="$( cd "${VAR_DIR}/.." >/dev/null && pwd )"
+
+cat "${VAR_DIR}/git-privacy-setup/VERSION"
+echo
+
+if [[ "${INSTALL_DIR}" =~ ( ) ]]; then
+    echo "You installed this script at:"
+    echo "    ${INSTALL_DIR}"
+    echo "It contains spaces that will cause problems using this script."
+    echo "Please reinstall it at a location without any space!"
+    exit 1
+fi
+
+case "$(uname -s)" in
+    Linux*)     SYS=linux;;
+    Darwin*)    SYS=mac;;
+    CYGWIN*)    SYS=win;;
+    MINGW*)     SYS=win;;
+    *)          SYS=UNKNOWN
+esac
+
+case "$(uname -m)" in
+    x86_64*)    ARCH=x64;;
+    *)          ARCH=x86
+esac
+
+if [[ -n "$1" ]]; then
+    PREFIX="profile.$1"
+else
+    PREFIX=""
+fi
+
+alias git="git --no-pager"
+
+function git_set()
+{
+    local key="$1"
+    local val="$2"
+    if [[ -n "${val}" ]]; then
+        git config --local "${key}" "${val}"
+        if [[ -n "${PREFIX}" ]]; then
+            git config --global "${PREFIX}.${key}" "${val}"
+        fi
+    else
+        git config --local --unset "${key}"
+        if [[ -n "${PREFIX}" ]]; then
+            git config --global --unset "${PREFIX}.${key}"
+        fi
+    fi
+}
+
+function git_get()
+{
+    local key="$1"
+    local val=$(git config --get "${key}")
+    if [[ -z "${val}" && -n "${PREFIX}" ]]; then
+        val=$(git config --get --global "${PREFIX}.${key}")
+    fi
+    echo "${val}"
+}
+
+function decide()
+{
+    local question="$1"
+    local yes_action="$2"
+    local no_action="$3"
+    while true; do
+        echo -n "${question} (y/n): "
+        read yn
+        case $yn in
+            [Yy]* )
+                if [[ -n "${yes_action}" ]]; then
+                    "${yes_action}"
+                fi
+                break;;
+            [Nn]* )
+                if [[ -n "${no_action}" ]]; then
+                    "${no_action}"
+                fi
+                break;;
+            * ) echo "Please type Y for Yes or N for No";;
+        esac
+    done
+}
+
+function git_init()
+{
+    echo "Initializing Git..."
+    git init
+}
+
+function git_dont_init()
+{
+    echo "Nothing to do."
+    exit
+}
+
+if [[ ! -d ".git" ]]; then
+    echo "You are not in a Git root directory."
+    decide 'Do you want to initialize current directory as a Git project?' git_init git_dont_init
+fi
+
+echo "Setup local Git hooks..."
+mkdir -p ".git/hooks"
+cp -f "${VAR_DIR}/git-privacy-setup/post-commit" ".git/hooks/post-commit"
+chmod +x ".git/hooks/post-commit"
+
+function git_set_profile()
+{
+    echo -n "Enter a name: "
+    read git_name
+    echo -n "Enter a email: "
+    read git_email
+}
+
+git_name="$(git_get user.name)"
+git_email="$(git_get user.email)"
+if [[ -n "${git_name}" && -n "${git_email}" ]]; then
+    echo "You current Git commit profile is:"
+    echo "    ${git_name} <${git_email}>"
+    decide 'Do you want to use this profile?' '' git_set_profile
+else
+    echo "You don't have a Git commit profile."
+    echo "Setup a local profile now..."
+    git_set_profile
+fi
+git_set user.name "${git_name}"
+git_set user.email "${git_email}"
+git_name="$(git_get user.name)"
+git_email="$(git_get user.email)"
+echo "Local Git commit profile set to:"
+echo "    ${git_name} <${git_email}>"
+
+function git_set_gpgsign()
+{
+    gpgsign="true"
+}
+
+function git_unset_gpgsign()
+{
+    gpgsign="false"
+}
+
+gpgsign="$(git_get commit.gpgsign)"
+if [[ "${gpgsign}" != "true" ]]; then
+    decide 'Do you want to sign commits with a GPG key?' git_set_gpgsign git_unset_gpgsign
+fi
+git_set commit.gpgsign "${gpgsign}"
+
+function git_set_signingkey()
+{
+    echo -n "Enter a GPG key ID: "
+    read signingkey
+}
+
+if [[ "${gpgsign}" == "true" ]]; then
+    signingkey="$(git_get user.signingkey)"
+    if [[ -z "${signingkey}" ]]; then
+        git_set_signingkey
+    else
+        echo "You have this GPG key ID in your Git config:"
+        echo "    ${signingkey}"
+        decide 'Do you want to use this GPG key?' '' git_set_signingkey
+    fi
+    git_set user.signingkey "${signingkey}"
+fi
+
+function git_set_gpg_program()
+{
+    echo -n "Enter the path to GPG executable: "
+    read gpg_program
+}
+
+if [[ "${gpgsign}" == "true" ]]; then
+    gpg_program="$(git_get gpg.program)"
+    if [[ -z "${gpg_program}" ]]; then
+        gpg_program="$(command -v "gpg")"
+        if [[ -x "${gpg_program}" ]]; then
+            echo "You have this GPG program in your path:"
+            echo "    ${gpg_program}"
+            decide 'Do you want to use this GPG program?' '' git_set_gpg_program
+        else
+            echo "Can't find a GPG program!"
+            echo "Setup GPG program path now..."
+            git_set_gpg_program
+        fi
+    else
+        echo "You have this GPG program in your Git config:"
+        echo "    ${gpg_program}"
+        decide 'Do you want to use this GPG program?' '' git_set_gpg_program
+    fi
+    git_set gpg.program "${gpg_program}"
+fi
+
+function git_set_ssh_ident()
+{
+    echo -n "Enter the SSH private key path (e.g. ~/.ssh/id_rsa): "
+    read ssh_ident
+    ssh_ident="${ssh_ident/#\~/$HOME}"
+}
+
+ssh_ident="$(git_get ssh.ident)"
+if [[ -n "${ssh_ident}" ]]; then
+    echo "You have this SSH private key in your Git config:"
+    echo "    ${ssh_ident}"
+    decide 'Do you want to use this SSH private key?' '' git_set_ssh_ident
+else
+    decide 'Do you want to specify a SSH key?' git_set_ssh_ident
+fi
+git_set ssh.ident "${ssh_ident}"
+
+function git_set_proxy()
+{
+    echo -n "Enter the SOCKS5 proxy ( [user:pass@]host:port ): "
+    read proxy
+}
+
+proxy="$(git_get proxy.socks5)"
+if [[ -n "${proxy}" ]]; then
+    echo "You have this SOCKS5 proxy in your Git config:"
+    echo "    ${proxy}"
+    decide 'Do you want to use this SOCKS5 proxy?' '' git_set_proxy
+else
+    decide 'Do you want to use a SOCKS5 proxy?' git_set_proxy
+fi
+git_set proxy.socks5 "${proxy}"
+
+function git_set_connect()
+{
+    echo -n "Enter the path to connect executable: "
+    read connect
+}
+
+function find_system_connect()
+{
+    connect="$(command -v "connect")"
+    if [[ -x "${connect}" ]]; then
+        echo "You have this connect executable in your path:"
+        echo "    ${connect}"
+        decide 'Do you want to use this connect executable?' '' git_set_connect
+    else
+        echo "Can't find a connect executable!"
+        echo "Setup connect executable path now..."
+        git_set_connect
+    fi
+}
+
+function find_precompiled_connect()
+{
+    connect="${VAR_DIR}/connect/${SYS}/${ARCH}/connect"
+    if [[ -x "${connect}" ]]; then
+        echo "We have provided a precompiled executable at:"
+        echo "    ${connect}"
+        decide 'Do you want to use this connect executable?' '' find_system_connect
+    else
+        find_system_connect
+    fi
+}
+
+if [[ -n "${proxy}" ]]; then
+    echo "Using SOCKS5 proxy with Git over SSH needs the connect executable."
+    echo "It's recommended to obtain the patched version from:"
+    echo "    https://github.com/cramershoup/connect.c"
+    echo "Which supports inline password and uses NOAUTH if no explicit login."
+    connect="$(git_get connect.program)"
+    if [[ -n "${connect}" ]]; then
+        echo "You have this connect executable in your Git config:"
+        echo "    ${connect}"
+        decide 'Do you want to use this connect executable?' '' find_precompiled_connect
+    else
+        find_precompiled_connect
+    fi
+    git_set connect.program "${connect}"
+fi
+
+if [[ -n "${ssh_ident}" || -n "${proxy}" ]]; then
+    ssh=("ssh")
+    if [[ -n "${ssh_ident}" ]]; then
+        ssh+=("-i" "'${ssh_ident}'")
+    fi
+    if [[ -n "${proxy}" ]]; then
+        ssh+=("-o" "ProxyCommand=\"'${connect}' -S '${proxy}' %h %p\"")
+    fi
+    git_set http.proxy "socks5h://${proxy}"
+    git_set core.sshCommand "$(echo "${ssh[@]}")"
+fi
+
+if [[ -z "${proxy}" ]]; then
+    git_set http.proxy
+fi
+
+echo "Your Git setup is completed!"
