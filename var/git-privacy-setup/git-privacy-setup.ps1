@@ -139,31 +139,36 @@ if ($gpgsign -eq "true") {
     git_set user.signingkey "$signingkey"
 }
 
-function git_set_gpg_program {
-    $script:gpg_program = Read-Host -Prompt "Enter the path to GPG executable"
+function git_set_gpg_realprogram {
+    $script:gpg_realprogram = Read-Host -Prompt "Enter the path to GPG executable"
 }
 
 if ($gpgsign -eq "true") {
     $gpg_program = git_get gpg.program
-    if ($gpg_program) {
+    if (!$gpg_program) {
+        git_set gpg.program "$VAR_DIR\git-privacy-setup\gpg-fake-system-time"
+    }
+
+    $gpg_realprogram = git_get gpg.realprogram
+    if ($gpg_realprogram) {
         Write-Host "You have this GPG program in your Git config:"
-        Write-Host "    $gpg_program"
-        decide 'Do you want to use this GPG program?' '' git_set_gpg_program
+        Write-Host "    $gpg_realprogram"
+        decide 'Do you want to use this GPG program?' '' git_set_gpg_realprogram
     }
     else {
         try {
-            $gpg_program = (Get-Item (Get-Command gpg).Path).FullName
+            $gpg_realprogram = (Get-Item (Get-Command gpg).Path).FullName
             Write-Host "You have this GPG program in your path:"
-            Write-Host "    $gpg_program"
-            decide 'Do you want to use this GPG program?' '' git_set_gpg_program
+            Write-Host "    $gpg_realprogram"
+            decide 'Do you want to use this GPG program?' '' git_set_gpg_realprogram
         }
         catch {
             Write-Host "Can't find a GPG program!"
             Write-Host "Setup GPG program path now..."
-            git_set_gpg_program
+            git_set_gpg_realprogram
         }
     }
-    git_set gpg.program "$gpg_program"
+    git_set gpg.realprogram "$gpg_realprogram"
 }
 
 function git_set_ssh_ident {

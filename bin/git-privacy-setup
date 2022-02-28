@@ -168,31 +168,36 @@ if [[ "${gpgsign}" == "true" ]]; then
     git_set user.signingkey "${signingkey}"
 fi
 
-function git_set_gpg_program()
+function git_set_gpg_realprogram()
 {
     echo -n "Enter the path to GPG executable: "
-    read gpg_program
+    read gpg_realprogram
 }
 
 if [[ "${gpgsign}" == "true" ]]; then
     gpg_program="$(git_get gpg.program)"
     if [[ -z "${gpg_program}" ]]; then
-        gpg_program="$(command -v "gpg")"
-        if [[ -x "${gpg_program}" ]]; then
+        git_set gpg.program "${VAR_DIR}/git-privacy-setup/gpg-fake-system-time"
+    fi
+
+    gpg_realprogram="$(git_get gpg.realprogram)"
+    if [[ -z "${gpg_realprogram}" ]]; then
+        gpg_realprogram="$(command -v "gpg")"
+        if [[ -x "${gpg_realprogram}" ]]; then
             echo "You have this GPG program in your path:"
-            echo "    ${gpg_program}"
-            decide 'Do you want to use this GPG program?' '' git_set_gpg_program
+            echo "    ${gpg_realprogram}"
+            decide 'Do you want to use this GPG program?' '' git_set_gpg_realprogram
         else
             echo "Can't find a GPG program!"
             echo "Setup GPG program path now..."
-            git_set_gpg_program
+            git_set_gpg_realprogram
         fi
     else
         echo "You have this GPG program in your Git config:"
-        echo "    ${gpg_program}"
-        decide 'Do you want to use this GPG program?' '' git_set_gpg_program
+        echo "    ${gpg_realprogram}"
+        decide 'Do you want to use this GPG program?' '' git_set_gpg_realprogram
     fi
-    git_set gpg.program "${gpg_program}"
+    git_set gpg.realprogram "${gpg_realprogram}"
 fi
 
 function git_set_ssh_ident()

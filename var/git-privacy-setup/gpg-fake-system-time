@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+case "$(uname -s)" in
+    Linux*)     SYS=linux;;
+    Darwin*)    SYS=mac;;
+    CYGWIN*)    SYS=win;;
+    MINGW*)     SYS=win;;
+    *)          SYS=UNKNOWN
+esac
+
+function format_date()
+{
+    in_format="$1"
+    out_format="$2"
+    in_date="$3"
+    if [[ "${SYS}" == "mac" ]]; then
+        TZ=UTC date -j -f "${in_format}" "+${out_format}" "${in_date}"
+    else
+        TZ=UTC date -d "${in_date}" "+${out_format}"
+    fi
+}
+
+in_date="$(date "+%Y-%m-%dT00:00:00 +0000")"
+in_format="%Y-%m-%dT%H:%M:%S %z"
+out_format="%s"
+
+TZ=UTC "$(git config gpg.realprogram)" --faked-system-time "$(format_date "${in_format}" "${out_format}" "${in_date}")" "$@"
