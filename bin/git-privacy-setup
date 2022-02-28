@@ -282,7 +282,7 @@ if [[ -n "${ssh_ident}" || -n "${proxy}" ]]; then
         ssh+=("-i" "'${ssh_ident}'")
     fi
     if [[ -n "${proxy}" ]]; then
-        ssh+=("-o" "ProxyCommand=\"'${connect}' -S '${proxy}' %h %p\"")
+        ssh+=("-o" "IdentitiesOnly=yes" "-o" "ProxyCommand=\"'${connect}' -S '${proxy}' %h %p\"")
     fi
     git_set http.proxy "socks5h://${proxy}"
     git_set core.sshCommand "$(echo "${ssh[@]}")"

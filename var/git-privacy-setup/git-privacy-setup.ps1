@@ -268,7 +268,7 @@ if ($ssh_ident -and $proxy) {
         $ssh += " -i '$ssh_ident'"
     }
     if ($proxy) {
-        $ssh += " -o 'ProxyCommand=$connect -S $proxy %h %p'"
+        $ssh += "-o IdentitiesOnly=yes -o 'ProxyCommand=$connect -S $proxy %h %p'"
     }
     git_set http.proxy "socks5h://$proxy"
     git_set core.sshCommand $ssh
