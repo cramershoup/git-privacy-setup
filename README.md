@@ -40,7 +40,7 @@ to your `PATH` environment variable. Please don't use symbolic link to install.
 Inside any Git repository root directory, run:
 
 ```bash
-git-privacy-setup [profile]
+git privacy-setup [profile]
 ```
 
 Follow the instructions to setup your Git repository. These settings are only

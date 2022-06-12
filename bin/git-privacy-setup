@@ -55,9 +55,10 @@ function git_set()
 function git_get()
 {
     local key="$1"
-    local val=$(git config --get "${key}")
+    local val
+    val="$(git config --get "${key}")"
     if [[ -z "${val}" && -n "${PREFIX}" ]]; then
-        val=$(git config --get --global "${PREFIX}.${key}")
+        val="$(git config --get --global "${PREFIX}.${key}")"
     fi
     echo "${val}"
 }
@@ -69,7 +70,7 @@ function decide()
     local no_action="$3"
     while true; do
         echo -n "${question} (y/n): "
-        read yn
+        read -r yn
         case $yn in
             [Yy]* )
                 if [[ -n "${yes_action}" ]]; then
@@ -111,9 +112,9 @@ chmod +x ".git/hooks/post-commit"
 function git_set_profile()
 {
     echo -n "Enter a name: "
-    read git_name
+    read -r git_name
     echo -n "Enter a email: "
-    read git_email
+    read -r git_email
 }
 
 git_name="$(git_get user.name)"
@@ -153,7 +154,7 @@ git_set commit.gpgsign "${gpgsign}"
 function git_set_signingkey()
 {
     echo -n "Enter a GPG key ID: "
-    read signingkey
+    read -r signingkey
 }
 
 if [[ "${gpgsign}" == "true" ]]; then
@@ -171,7 +172,7 @@ fi
 function git_set_gpg_realprogram()
 {
     echo -n "Enter the path to GPG executable: "
-    read gpg_realprogram
+    read -r gpg_realprogram
 }
 
 if [[ "${gpgsign}" == "true" ]]; then
@@ -203,7 +204,7 @@ fi
 function git_set_ssh_ident()
 {
     echo -n "Enter the SSH private key path (e.g. ~/.ssh/id_rsa): "
-    read ssh_ident
+    read -r ssh_ident
     ssh_ident="${ssh_ident/#\~/$HOME}"
 }
 
@@ -220,7 +221,7 @@ git_set ssh.ident "${ssh_ident}"
 function git_set_proxy()
 {
     echo -n "Enter the SOCKS5 proxy ( [user:pass@]host:port ): "
-    read proxy
+    read -r proxy
 }
 
 proxy="$(git_get proxy.socks5)"
@@ -236,7 +237,7 @@ git_set proxy.socks5 "${proxy}"
 function git_set_connect()
 {
     echo -n "Enter the path to connect executable: "
-    read connect
+    read -r connect
 }
 
 function find_system_connect()
@@ -282,12 +283,12 @@ if [[ -n "${proxy}" ]]; then
 fi
 
 if [[ -n "${ssh_ident}" || -n "${proxy}" ]]; then
-    ssh=("ssh")
+    ssh=("ssh" "-F" "/dev/null")
     if [[ -n "${ssh_ident}" ]]; then
-        ssh+=("-i" "'${ssh_ident}'")
+        ssh+=("-o" "IdentitiesOnly=yes" "-i" "'${ssh_ident}'")
     fi
     if [[ -n "${proxy}" ]]; then
-        ssh+=("-o" "IdentitiesOnly=yes" "-o" "ProxyCommand=\"'${connect}' -S '${proxy}' %h %p\"")
+        ssh+=("-o" "ProxyCommand=\"'${connect}' -S '${proxy}' %h %p\"")
     fi
     git_set http.proxy "socks5h://${proxy}"
     git_set core.sshCommand "$(echo "${ssh[@]}")"
